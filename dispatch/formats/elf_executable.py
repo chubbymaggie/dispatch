@@ -68,6 +68,7 @@ class ELFExecutable(BaseExecutable):
     def _extract_symbol_table(self):
         # Add in symbols from the PLT/rela.plt
         # .rela.plt contains indexes to reference both .dynsym (symbol names) and .plt (jumps to GOT)
+
         if self.is_64_bit():
             reloc_section = self.helper.get_section_by_name('.rela.plt')
         else:
@@ -100,8 +101,20 @@ class ELFExecutable(BaseExecutable):
                                  type=Function.DYNAMIC_FUNC)
                     self.functions[plt_addr] = f
             else:
-                logging.debug('Relocation section had sh_link to {}. Not parsing symbols...'.format(dynsym))
+                logging.debug('.rel(a).plt section had sh_link to {}. Not parsing symbols...'.format(dynsym))
 
+        if self.helper.get_section_by_name('.dynsym'):
+            for symbol in self.helper.get_section_by_name('.dynsym').iter_symbols():
+                if symbol.entry['st_info']['type'] == 'STT_FUNC' and symbol.entry['st_size'] > 0:
+                    vaddr = symbol.entry['st_value']
+                    if vaddr not in self.functions:
+                        logging.debug('Adding function from .dynsym directly at vaddr {}'.format(vaddr))
+                        f = Function(vaddr,
+                                     symbol.entry['st_size'],
+                                     symbol.name,
+                                     self,
+                                     type=Function.DYNAMIC_FUNC)
+                        self.functions[vaddr] = f
 
 
         # Some things in the symtab have st_size = 0 which confuses analysis later on. To solve this, we keep track of

@@ -207,6 +207,7 @@ class X86_Analyzer(BaseAnalyzer):
                 if ins.mnemonic == 'cmp': # Anything else? Is sub used in ranges in clang?
                     cmp_ins = ins
 
+                # TODO: replace `in ...` with `not in`
                 elif cmp_ins and ins.is_jump() and ins.mnemonic in ('jb','jnae','jnb','jae','jbe',
                                                                     'jna','ja','jnbe','jl','jnge',
                                                                     'jge','jnl','jle','jng','jg','jnle'):
@@ -255,8 +256,8 @@ class X86_Analyzer(BaseAnalyzer):
                             ins_to_table.append((ins.address, table_addr))
                             break
 
-                    # Option 2: offset is directly in the mem. operand
-                    if bb_types[bb.address][1].operands[-1].type == Operand.MEM:
+                    # Option 2: offset is directly in the jumps mem. operand
+                    elif bb_types[bb.address][1].operands[-1].type == Operand.MEM:
                         mem_offset = bb_types[bb.address][1].operands[-1].disp
                         if mem_offset:
                             logging.debug("Marking table at {} as an ABS table".format(hex(mem_offset)))
