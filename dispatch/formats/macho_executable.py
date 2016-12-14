@@ -39,8 +39,6 @@ class MachOExecutable(BaseExecutable):
 
         self.libraries = [fp.rstrip('\x00') for lc, cmd, fp in self.helper.headers[0].commands if lc.cmd == LC_LOAD_DYLIB]
 
-        self.next_injection_vaddr = 0
-
     def _identify_arch(self):
         if self.helper.headers[0].header.cputype == 0x7:
             return ARCHITECTURE.X86

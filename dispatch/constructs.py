@@ -19,7 +19,7 @@ class Function(object):
 
         # BELOW: Helpers used to explore the binary.
         # NOTE: These should *not* be directly modified at this time.
-        # Instead, executable.replace_instruction should be used.
+        # Instead, executable.replace_at should be used.
         self.instructions = [] # Sequential list of instructions
         self.bbs = [] # Sequential list of basic blocks. BB instructions are auto-populated from our instructions
 

@@ -1,5 +1,11 @@
 import os
 import logging
+
+try:
+    from keystone import *
+except:
+    logging.warning('Keystone assembler not found so assembling will not work')
+
 from StringIO import StringIO
 
 from ..analysis.x86_analyzer import *
@@ -31,6 +37,8 @@ class BaseExecutable(object):
         self.functions = {} # Vaddr: Function
         self.strings = {}
         self.xrefs = {}
+
+        self.next_injection_vaddr = None
 
     def __repr__(self):
         return '<{} {} \'{}\'>'.format(self.architecture, self.__class__.__name__, self.fp)
@@ -177,6 +185,40 @@ class BaseExecutable(object):
 
         return self.analyzer
 
+    def _ks_symbol_resolver(self, symbol, value):
+        f = self.function_named(symbol)
+
+        if f:
+            value = f.address
+            return True
+
+        return False
+
+    def assemble(self, s, vaddr=0):
+        '''
+        Assemble the given string relative to the given virtual address
+        :param s: String of assembly commands to be assembled
+        :param vaddr: Virtual address the code is assembled relative to
+        :return: A bytearray with the resulting machine code
+        '''
+        if self.architecture == ARCHITECTURE.X86:
+            ks = Ks(KS_ARCH_X86, KS_MODE_32)
+        elif self.architecture == ARCHITECTURE.X86_64:
+            ks = Ks(KS_ARCH_X86, KS_MODE_64)
+        elif self.architecture == ARCHITECTURE.ARM:
+            ks = Ks(KS_ARCH_ARM, KS_MODE_ARM)
+        elif self.architecture == ARCHITECTURE.ARM_64:
+            ks = Ks(KS_ARCH_ARM64, KS_MODE_ARM)
+        else:
+            logging.error('Could not create assembler for {}'.format(self))
+            raise Exception('Architecture not supported')
+
+        ks.sym_resolver = self._ks_symbol_resolver
+
+        encoding, count = ks.asm(s, vaddr)
+
+        return bytearray(encoding)
+
     def prepare_for_injection(self):
         '''
         Prepares the binary for code injection, creating sections/segments where needed.
@@ -195,6 +237,42 @@ class BaseExecutable(object):
         :return: (offset of injected assembly in binary, virtual address of injected assembly)
         '''
         raise NotImplementedError()
+
+    def hook(self, vaddr, asm):
+        '''
+        Patches the given binary to call `asm` at `vaddr`.
+        :param vaddr: The virtual address of the instruction to hook/patch
+        :param asm: The assembly (either string of assembly, bytearray of assembled opcodes, or list of Instructions) to
+        be written
+        :return: The virtual address of the created hook
+        '''
+
+        # TODO: Move below to its own function and use in replace_instruction and inject
+        if type(asm) not in [str, list, bytearray]:
+            raise ValueError('asm is not a valid type. Must be str, list, or bytearray')
+
+        if self.next_injection_vaddr is None:
+            self.prepare_for_injection()
+
+        # We first replace the original instruction with a call to a new code chunk
+        jmp = self.assemble('call '+hex(self.next_injection_vaddr), vaddr) #TODO: Architecture independent
+        overwritten_instructions = self.replace_at(vaddr, jmp)
+
+        if type(asm) == str:
+            # Assemble with keystone
+            asm = self.assemble(asm, self.next_injection_vaddr + sum(ins.size for ins in overwritten_instructions))
+        elif type(asm) == list:
+            # Assemble each Instruction object
+            asm = sum((ins.raw for ins in asm), bytearray())
+
+        # Then we inject that new code chunk. This is composed of the instructions we wrote over to create the jump
+        # as well as the assembly we actually want to call
+        new_chunk = sum((ins.raw for ins in overwritten_instructions), bytearray()) + asm
+        hook_addr = self.inject(new_chunk)
+        logging.debug('Replaced instruction at {} with jump to {}'.format(vaddr, hook_addr))
+
+        return hook_addr
+
 
     def iter_functions(self):
         '''
@@ -215,12 +293,12 @@ class BaseExecutable(object):
 
         return None
 
-    def replace_instruction(self, vaddr, new_asm):
+    def replace_at(self, vaddr, new_asm):
         '''
         Replaces an instruction with the given assembly.
         :param vaddr: The address of the existing instruction(s) to overwrite.
         :param new_asm: The new assembly that will be written over the old instruction.
-        :return: None
+        :return: The original instruction(s) that was/were overwritten
         '''
 
         if not vaddr in self.analyzer.ins_map:
@@ -271,6 +349,8 @@ class BaseExecutable(object):
 
         for ins in new_instructions:
             self.analyzer.ins_map[ins.address] = ins
+
+        return overwritten_insns
 
     def save(self, file_name):
         with open(file_name, 'wb') as f:

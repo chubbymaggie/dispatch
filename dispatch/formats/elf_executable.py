@@ -34,7 +34,6 @@ class ELFExecutable(BaseExecutable):
             self.libraries = [t.needed for t in dyn.iter_tags() if t['d_tag'] == 'DT_NEEDED']
 
         self.next_injection_offset = None
-        self.next_injection_vaddr = None
 
     def _identify_arch(self):
         machine = self.helper.get_machine_arch()
@@ -257,7 +256,7 @@ class ELFExecutable(BaseExecutable):
     def inject(self, asm, update_entry=False):
         if self.next_injection_offset is None or self.next_injection_vaddr is None:
             logging.warning(
-                'prepare_for_injection() was not called before inject(). This may cause unexpected behavior')
+                'prepare_for_injection() was not called before inject(). Calling now, but this may cause unexpected behavior')
             self.prepare_for_injection()
 
         for segment in self.helper.iter_segments():
@@ -300,5 +299,3 @@ class ELFExecutable(BaseExecutable):
         self.next_injection_offset += len(asm)
 
         return self.next_injection_vaddr - len(asm)
-
-

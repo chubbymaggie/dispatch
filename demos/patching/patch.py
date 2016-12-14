@@ -13,7 +13,7 @@ for i in main.instructions:
     # Find the first jne which happens to be the "winner" check
     if i.mnemonic == 'jne':
         ins = i
-        exe.replace_instruction(i.address, '') # NOP it out
+        exe.replace_at(i.address, '') # NOP it out
         exe.save('patched') # Save
         os.system("chmod +x patched") # and make the patched binary executable
 
