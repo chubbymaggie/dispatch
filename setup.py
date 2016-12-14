@@ -9,6 +9,7 @@ setup(
     packages=['dispatch', 'dispatch.util', 'dispatch.formats', 'dispatch.analysis'],
     install_requires=[
         'capstone>3.0',
+        'keystone-engine',
         'pyelftools',
         'pefile',
         'macholib'
