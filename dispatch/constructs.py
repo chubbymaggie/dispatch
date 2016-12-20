@@ -238,10 +238,10 @@ class Operand(object):
 
     def __str__(self):
         sizes = {
-                1: 'byte',
-                2: 'word',
-                4: 'dword',
-                8: 'qword'
+                1: 'byte ptr',
+                2: 'word ptr',
+                4: 'dword ptr',
+                8: 'qword ptr'
                 }
         if self.type == Operand.IMM:
             return sizes.get(self.size, '') + ' ' + hex(self.imm)
