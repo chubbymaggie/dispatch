@@ -143,13 +143,21 @@ class Instruction(object):
 
     def references_ip(self):
         implicit_read, implicit_written = self._backend_instruction.regs_access()
-        explicit_accessed = set.union(*[op.used_regs() for op in self.operands])
+        ops_direct = [op.used_regs() for op in self.operands]
+        if ops_direct:
+            explicit_accessed = set.union(*ops_direct)
+        else:
+            explicit_accessed = set()
         all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
         return bool(self._executable.analyzer.IP_REGS.intersection(all_accessed))
 
     def references_sp(self):
         implicit_read, implicit_written = self._backend_instruction.regs_access()
-        explicit_accessed = set.union(*[op.used_regs() for op in self.operands])
+        ops_direct = [op.used_regs() for op in self.operands]
+        if ops_direct:
+            explicit_accessed = set.union(*ops_direct)
+        else:
+            explicit_accessed = set()
         all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
         return bool(self._executable.analyzer.SP_REGS.intersection(all_accessed))
 
