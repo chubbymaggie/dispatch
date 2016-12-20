@@ -142,10 +142,16 @@ class Instruction(object):
         return self.is_jump() or self.is_call()
 
     def references_ip(self):
-        return any(self._executable.analyzer.IP_REGS.intersection(op.used_regs()) for op in self.operands)
+        implicit_read, implicit_written = self._backend_instruction.regs_access()
+        explicit_accessed = set.union(*[op.used_regs() for op in self.operands])
+        all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
+        return bool(self._executable.analyzer.IP_REGS.intersection(all_accessed))
 
     def references_sp(self):
-        return any(self._executable.analyzer.SP_REGS.intersection(op.used_regs()) for op in self.operands)
+        implicit_read, implicit_written = self._backend_instruction.regs_access()
+        explicit_accessed = set.union(*[op.used_regs() for op in self.operands])
+        all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
+        return bool(self._executable.analyzer.SP_REGS.intersection(all_accessed))
 
     def op_str(self):
         return ', '.join(str(op) for op in self.operands)
