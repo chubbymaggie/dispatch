@@ -74,4 +74,4 @@ class Trie(object):
             node = node.children[bucket]
 
         if node.value:
-            del node.value
+            node.value = None
