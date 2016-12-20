@@ -18,7 +18,7 @@ class X86_Analyzer(BaseAnalyzer):
 
         self.REG_NAMES = dict([(v,k[8:].lower()) for k,v in capstone.x86_const.__dict__.iteritems() if k.startswith('X86_REG')])
         self.IP_REGS = set([26, 34, 41])
-        self.SP_REGS = set([30, 44, 47])
+        self.SP_REGS = set([6, 7, 20, 30, 36, 44, 47, 48])
         self.NOP_INSTRUCTION = '\x90'
 
     def _gen_ins_map(self):
