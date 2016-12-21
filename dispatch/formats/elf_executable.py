@@ -274,10 +274,11 @@ class ELFExecutable(BaseExecutable):
 
             # NOTE: Could this change the destination address for the code that gets injected?
             self.prepare_for_injection()
-        elif self.next_injection_offset == 0:
-            used_code_len = len(injection_section.data().rstrip('\xCC'))
-            self.next_injection_offset = injection_section['sh_offset'] + used_code_len
-            self.next_injection_vaddr = injection_section['sh_addr'] + used_code_len
+            injection_section = self.helper.get_section(injection_section_idx)
+
+        used_code_len = len(injection_section.data().rstrip('\xCC'))
+        self.next_injection_offset = injection_section['sh_offset'] + used_code_len
+        self.next_injection_vaddr = injection_section['sh_addr'] + used_code_len
 
         # "Inject" the assembly
         logging.debug('Injecting {} bytes of assembly at offset {}'.format(len(asm), self.next_injection_offset))
