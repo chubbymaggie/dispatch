@@ -213,7 +213,7 @@ class BaseExecutable(object):
             logging.error('Could not create assembler for {}'.format(self))
             raise Exception('Architecture not supported')
 
-        ks.sym_resolver = self._ks_symbol_resolver
+        ks.sym_resolver =  self._ks_symbol_resolver
 
         encoding, count = ks.asm(s, vaddr)
 
@@ -260,14 +260,18 @@ class BaseExecutable(object):
 
         if type(asm) == str:
             # Assemble with keystone
-            asm = self.assemble(asm, self.next_injection_vaddr + sum(ins.size for ins in overwritten_instructions))
+            pulled_list = [x.mnemonic + ' ' + x.op_str() for x in overwritten_instructions] 
+            asm = ' ; '.join(pulled_list) + ' ; ' + asm
+            asm = self.assemble(asm, self.next_injection_vaddr)
+            new_chunk = asm
         elif type(asm) == list:
+            # TODO: reassemble to fix offsets in overwritten instructions
             # Assemble each Instruction object
             asm = sum((ins.raw for ins in asm), bytearray())
+            new_chunk = sum((ins.raw for ins in overwritten_instructions), bytearray()) + asm
 
         # Then we inject that new code chunk. This is composed of the instructions we wrote over to create the jump
         # as well as the assembly we actually want to call
-        new_chunk = sum((ins.raw for ins in overwritten_instructions), bytearray()) + asm
         hook_addr = self.inject(new_chunk)
         logging.debug('Replaced instruction at {} with jump to {}'.format(vaddr, hook_addr))
 
