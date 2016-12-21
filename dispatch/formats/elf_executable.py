@@ -268,17 +268,16 @@ class ELFExecutable(BaseExecutable):
 
         # If we haven't injected code before or need to expand the section again for this injection, go ahead and
         # shift stuff around.
-        if injection_section['sh_size'] < INJECTION_SIZE or \
-                        injection_section['sh_offset'] + injection_section['sh_size'] < self.next_injection_offset + len(asm):
+        if injection_section['sh_offset'] + injection_section['sh_size'] < self.next_injection_offset + len(asm):
             logging.debug('Automatically expanding injection section to accommodate for assembly')
 
             # NOTE: Could this change the destination address for the code that gets injected?
             self.prepare_for_injection()
             injection_section = self.helper.get_section(injection_section_idx)
 
-        used_code_len = len(injection_section.data().rstrip('\xCC'))
-        self.next_injection_offset = injection_section['sh_offset'] + used_code_len
-        self.next_injection_vaddr = injection_section['sh_addr'] + used_code_len
+            used_code_len = len(injection_section.data().rstrip('\xCC'))
+            self.next_injection_offset = injection_section['sh_offset'] + used_code_len
+            self.next_injection_vaddr = injection_section['sh_addr'] + used_code_len
 
         # "Inject" the assembly
         logging.debug('Injecting {} bytes of assembly at offset {}'.format(len(asm), self.next_injection_offset))
