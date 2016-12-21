@@ -202,6 +202,7 @@ class ELFExecutable(BaseExecutable):
                                              executable_segment.section_in_segment(self.helper.get_section(idx))])
                 last_exec_section = self.helper.get_section(last_exec_section_idx)
 
+                segment_hdr.p_flags |= P_FLAGS.PF_X | P_FLAGS.PF_W | P_FLAGS.PF_R
                 segment_hdr.p_filesz += INJECTION_SIZE
                 segment_hdr.p_memsz += INJECTION_SIZE
 
@@ -226,6 +227,7 @@ class ELFExecutable(BaseExecutable):
         section_header_offset = self.helper._section_offset(last_exec_section_idx)
         section_header = last_exec_section.header.copy()
 
+        section_header.pflags = P_FLAGS.PF_R | P_FLAGS.PF_W | P_FLAGS.PF_X # Hack to make it so we can RWX the page
         section_header.sh_size += INJECTION_SIZE
 
         modified.seek(section_header_offset)
