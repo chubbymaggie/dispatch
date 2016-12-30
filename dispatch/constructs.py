@@ -161,6 +161,16 @@ class Instruction(object):
         all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
         return bool(self._executable.analyzer.SP_REGS.intersection(all_accessed))
 
+    def references_seg_reg(self):
+        '''
+        Returns whether our instruction uses segmentation registers (fs, gs, etc on x86[_64])
+        Mostly seen on x86[_64] stack canaries
+        :return: Whether this instruction references the segmentation registers
+        '''
+        operand_refs_seg_reg = lambda op: op.type == Operand.MEM and op.seg_reg
+
+        return any(operand_refs_seg_reg(op) for op in self.operands)
+
     def op_str(self):
         return ', '.join(str(op) for op in self.operands)
 
