@@ -217,6 +217,7 @@ class Operand(object):
             self.index = kwargs.get('index')
             self.scale = int(kwargs.get('scale', 1))
             self.disp = int(kwargs.get('disp', 0))
+            self.seg_reg = kwargs.get('seg_reg')
         else:
             raise ValueError('Type is not one of Operand.{IMM,FP,REG,MEM}')
 
@@ -251,8 +252,13 @@ class Operand(object):
             return self._instruction._executable.analyzer.REG_NAMES[self.reg]
         elif self.type == Operand.MEM:
             simplified = self._get_simplified()
+            
+            s = ''
+            if self.seg_reg:
+                s += self._instruction._executable.analyzer.REG_NAMES[simplified.seg_reg]
+                s += ':'
 
-            s = '['
+            s += '['
 
             show_plus = False
             if simplified.base:
@@ -287,7 +293,7 @@ def operand_from_cs_op(csOp, instruction):
     elif csOp.type == capstone.CS_OP_REG:
         return Operand(Operand.REG, size, instruction, reg=csOp.reg)
     elif csOp.type == capstone.CS_OP_MEM:
-        return Operand(Operand.MEM, size, instruction, base=csOp.mem.base, index=csOp.mem.index, scale=csOp.mem.scale, disp=csOp.mem.disp)
+        return Operand(Operand.MEM, size, instruction, base=csOp.mem.base, index=csOp.mem.index, scale=csOp.mem.scale, disp=csOp.mem.disp, seg_reg=csOp.reg)
 
 
 def instruction_from_cs_insn(csInsn, executable):
