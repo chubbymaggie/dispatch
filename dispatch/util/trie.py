@@ -73,5 +73,4 @@ class Trie(object):
                 raise KeyError()
             node = node.children[bucket]
 
-        if node.value:
-            del node.value
+        node.value = None

@@ -34,7 +34,6 @@ class ELFExecutable(BaseExecutable):
             self.libraries = [t.needed for t in dyn.iter_tags() if t['d_tag'] == 'DT_NEEDED']
 
         self.next_injection_offset = None
-        self.next_injection_vaddr = None
 
     def _identify_arch(self):
         machine = self.helper.get_machine_arch()
@@ -68,6 +67,7 @@ class ELFExecutable(BaseExecutable):
     def _extract_symbol_table(self):
         # Add in symbols from the PLT/rela.plt
         # .rela.plt contains indexes to reference both .dynsym (symbol names) and .plt (jumps to GOT)
+
         if self.is_64_bit():
             reloc_section = self.helper.get_section_by_name('.rela.plt')
         else:
@@ -100,8 +100,20 @@ class ELFExecutable(BaseExecutable):
                                  type=Function.DYNAMIC_FUNC)
                     self.functions[plt_addr] = f
             else:
-                logging.debug('Relocation section had sh_link to {}. Not parsing symbols...'.format(dynsym))
+                logging.debug('.rel(a).plt section had sh_link to {}. Not parsing symbols...'.format(dynsym))
 
+        if self.helper.get_section_by_name('.dynsym'):
+            for symbol in self.helper.get_section_by_name('.dynsym').iter_symbols():
+                if symbol.entry['st_info']['type'] == 'STT_FUNC' and symbol.entry['st_size'] > 0:
+                    vaddr = symbol.entry['st_value']
+                    if vaddr not in self.functions:
+                        logging.debug('Adding function from .dynsym directly at vaddr {}'.format(vaddr))
+                        f = Function(vaddr,
+                                     symbol.entry['st_size'],
+                                     symbol.name,
+                                     self,
+                                     type=Function.DYNAMIC_FUNC)
+                        self.functions[vaddr] = f
 
 
         # Some things in the symtab have st_size = 0 which confuses analysis later on. To solve this, we keep track of
@@ -190,6 +202,7 @@ class ELFExecutable(BaseExecutable):
                                              executable_segment.section_in_segment(self.helper.get_section(idx))])
                 last_exec_section = self.helper.get_section(last_exec_section_idx)
 
+                segment_hdr.p_flags |= P_FLAGS.PF_X | P_FLAGS.PF_W | P_FLAGS.PF_R
                 segment_hdr.p_filesz += INJECTION_SIZE
                 segment_hdr.p_memsz += INJECTION_SIZE
 
@@ -214,6 +227,7 @@ class ELFExecutable(BaseExecutable):
         section_header_offset = self.helper._section_offset(last_exec_section_idx)
         section_header = last_exec_section.header.copy()
 
+        section_header.pflags = P_FLAGS.PF_R | P_FLAGS.PF_W | P_FLAGS.PF_X # Hack to make it so we can RWX the page
         section_header.sh_size += INJECTION_SIZE
 
         modified.seek(section_header_offset)
@@ -244,7 +258,7 @@ class ELFExecutable(BaseExecutable):
     def inject(self, asm, update_entry=False):
         if self.next_injection_offset is None or self.next_injection_vaddr is None:
             logging.warning(
-                'prepare_for_injection() was not called before inject(). This may cause unexpected behavior')
+                'prepare_for_injection() was not called before inject(). Calling now, but this may cause unexpected behavior')
             self.prepare_for_injection()
 
         for segment in self.helper.iter_segments():
@@ -256,13 +270,13 @@ class ELFExecutable(BaseExecutable):
 
         # If we haven't injected code before or need to expand the section again for this injection, go ahead and
         # shift stuff around.
-        if injection_section['sh_size'] < INJECTION_SIZE or \
-                        injection_section['sh_offset'] + injection_section['sh_size'] < self.next_injection_offset + len(asm):
+        if injection_section['sh_offset'] + injection_section['sh_size'] < self.next_injection_offset + len(asm):
             logging.debug('Automatically expanding injection section to accommodate for assembly')
 
             # NOTE: Could this change the destination address for the code that gets injected?
             self.prepare_for_injection()
-        elif self.next_injection_offset == 0:
+            injection_section = self.helper.get_section(injection_section_idx)
+
             used_code_len = len(injection_section.data().rstrip('\xCC'))
             self.next_injection_offset = injection_section['sh_offset'] + used_code_len
             self.next_injection_vaddr = injection_section['sh_addr'] + used_code_len
@@ -287,5 +301,3 @@ class ELFExecutable(BaseExecutable):
         self.next_injection_offset += len(asm)
 
         return self.next_injection_vaddr - len(asm)
-
-

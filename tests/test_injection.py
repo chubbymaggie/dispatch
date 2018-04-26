@@ -1,6 +1,6 @@
 import dispatch
 
-import logging, struct, sys
+import logging, sys
 
 if len(sys.argv) != 3:
     print "Usage: {} input_binary output_binary".format(sys.argv[0])
@@ -41,24 +41,8 @@ for function in executable.iter_functions():
         # Given a candidate instruction, replace it with a call to a new "function" that contains just that one
         # instruction and a jmp to the instrumentation code.
 
-        # Compute relative address that the jmp after the instruction should go to
-        instrumentation_jmp_offset = instrumentation_vaddr - (executable.next_injection_vaddr + replaced_instruction.size + 5)
-        ins_and_jump = replaced_instruction.raw + '\xe9' + struct.pack(executable.pack_endianness + 'i',
-                                                                       instrumentation_jmp_offset)
-
-        ins_jump_vaddr = executable.inject(ins_and_jump)
-
-        logging.debug('Added instruction ({} {}) and jmp to instrumentation at {}'.format(replaced_instruction.mnemonic,
-                                                                                          replaced_instruction.op_str(),
-                                                                                          hex(ins_jump_vaddr)))
-
-
-
-        # Finally, replace the instruction we lifed with a call to the ins and jump we just put together
-        call_ins = '\xe8' + struct.pack(executable.pack_endianness + 'i', ins_jump_vaddr - (replaced_instruction.address + 5))
-
-        executable.replace_instruction(replaced_instruction.address, call_ins)
-
-        logging.debug('Replaced instruction at {} with call to {}'.format(hex(replaced_instruction.address), hex(ins_jump_vaddr)))
+        hook_addr = executable.hook(replaced_instruction.address, 'jmp {}'.format(instrumentation_vaddr))
+        logging.info('Replaced instruction at address {} to call hook at {}'.format(hex(replaced_instruction.address),
+                                                                                    hex(hook_addr)))
 
 executable.save(sys.argv[2])

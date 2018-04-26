@@ -27,8 +27,6 @@ class PEExecutable(BaseExecutable):
             self.libraries = [dll.dll for dll in self.helper.DIRECTORY_ENTRY_IMPORT]
         else:
             self.libraries = []
-
-        self.next_injection_vaddr = 0
     
     def _identify_arch(self):
         machine = pefile.MACHINE_TYPE[self.helper.FILE_HEADER.Machine]
@@ -103,7 +101,7 @@ class PEExecutable(BaseExecutable):
 
         return inject_rva + self.helper.OPTIONAL_HEADER.ImageBase
 
-    def replace_instruction(self, vaddr, new_asm):
+    def replace_at(self, vaddr, new_asm):
         # Identical to the implementation in base_executable except for the commented section
 
         if not vaddr in self.analyzer.ins_map:
@@ -143,3 +141,4 @@ class PEExecutable(BaseExecutable):
         for ins in new_instructions:
             self.analyzer.ins_map[ins.address] = ins
 
+        return overwritten_insns

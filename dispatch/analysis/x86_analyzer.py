@@ -18,7 +18,7 @@ class X86_Analyzer(BaseAnalyzer):
 
         self.REG_NAMES = dict([(v,k[8:].lower()) for k,v in capstone.x86_const.__dict__.iteritems() if k.startswith('X86_REG')])
         self.IP_REGS = set([26, 34, 41])
-        self.SP_REGS = set([30, 44, 47])
+        self.SP_REGS = set([6, 7, 20, 30, 36, 44, 47, 48])
         self.NOP_INSTRUCTION = '\x90'
 
     def _gen_ins_map(self):
@@ -207,6 +207,7 @@ class X86_Analyzer(BaseAnalyzer):
                 if ins.mnemonic == 'cmp': # Anything else? Is sub used in ranges in clang?
                     cmp_ins = ins
 
+                # TODO: replace `in ...` with `not in`
                 elif cmp_ins and ins.is_jump() and ins.mnemonic in ('jb','jnae','jnb','jae','jbe',
                                                                     'jna','ja','jnbe','jl','jnge',
                                                                     'jge','jnl','jle','jng','jg','jnle'):
@@ -255,8 +256,8 @@ class X86_Analyzer(BaseAnalyzer):
                             ins_to_table.append((ins.address, table_addr))
                             break
 
-                    # Option 2: offset is directly in the mem. operand
-                    if bb_types[bb.address][1].operands[-1].type == Operand.MEM:
+                    # Option 2: offset is directly in the jumps mem. operand
+                    elif bb_types[bb.address][1].operands[-1].type == Operand.MEM:
                         mem_offset = bb_types[bb.address][1].operands[-1].disp
                         if mem_offset:
                             logging.debug("Marking table at {} as an ABS table".format(hex(mem_offset)))

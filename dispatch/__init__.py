@@ -1,3 +1,4 @@
+import logging
 import os
 
 from .formats.elf_executable import ELFExecutable
@@ -31,11 +32,17 @@ def read_executable(file_path):
         raise Exception('No such file')
 
     fmt = _identify_format(open(file_path, 'rb'))
+
     if fmt == FORMAT.ELF:
-        return ELFExecutable(file_path)
+        exe = ELFExecutable(file_path)
     elif fmt == FORMAT.PE:
-        return PEExecutable(file_path)
+        exe = PEExecutable(file_path)
     elif fmt == FORMAT.MACH_O:
-        return MachOExecutable(file_path)
+        exe = MachOExecutable(file_path)
     else:
         raise Exception('Could not determine executable format.')
+
+    logging.info('Extracting symbol table')
+    exe._extract_symbol_table()
+
+    return exe

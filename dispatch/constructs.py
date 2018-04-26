@@ -19,7 +19,7 @@ class Function(object):
 
         # BELOW: Helpers used to explore the binary.
         # NOTE: These should *not* be directly modified at this time.
-        # Instead, executable.replace_instruction should be used.
+        # Instead, executable.replace_at should be used.
         self.instructions = [] # Sequential list of instructions
         self.bbs = [] # Sequential list of basic blocks. BB instructions are auto-populated from our instructions
 
@@ -142,10 +142,34 @@ class Instruction(object):
         return self.is_jump() or self.is_call()
 
     def references_ip(self):
-        return any(self._executable.analyzer.IP_REGS.intersection(op.used_regs()) for op in self.operands)
+        implicit_read, implicit_written = self._backend_instruction.regs_access()
+        ops_direct = [op.used_regs() for op in self.operands]
+        if ops_direct:
+            explicit_accessed = set.union(*ops_direct)
+        else:
+            explicit_accessed = set()
+        all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
+        return bool(self._executable.analyzer.IP_REGS.intersection(all_accessed))
 
     def references_sp(self):
-        return any(self._executable.analyzer.SP_REGS.intersection(op.used_regs()) for op in self.operands)
+        implicit_read, implicit_written = self._backend_instruction.regs_access()
+        ops_direct = [op.used_regs() for op in self.operands]
+        if ops_direct:
+            explicit_accessed = set.union(*ops_direct)
+        else:
+            explicit_accessed = set()
+        all_accessed = set.union(explicit_accessed, implicit_read, implicit_written)
+        return bool(self._executable.analyzer.SP_REGS.intersection(all_accessed))
+
+    def references_seg_reg(self):
+        '''
+        Returns whether our instruction uses segmentation registers (fs, gs, etc on x86[_64])
+        Mostly seen on x86[_64] stack canaries
+        :return: Whether this instruction references the segmentation registers
+        '''
+        operand_refs_seg_reg = lambda op: op.type == Operand.MEM and op.seg_reg
+
+        return any(operand_refs_seg_reg(op) for op in self.operands)
 
     def op_str(self):
         return ', '.join(str(op) for op in self.operands)
@@ -203,6 +227,7 @@ class Operand(object):
             self.index = kwargs.get('index')
             self.scale = int(kwargs.get('scale', 1))
             self.disp = int(kwargs.get('disp', 0))
+            self.seg_reg = kwargs.get('seg_reg')
         else:
             raise ValueError('Type is not one of Operand.{IMM,FP,REG,MEM}')
 
@@ -224,10 +249,10 @@ class Operand(object):
 
     def __str__(self):
         sizes = {
-                1: 'byte',
-                2: 'word',
-                4: 'dword',
-                8: 'qword'
+                1: 'byte ptr',
+                2: 'word ptr',
+                4: 'dword ptr',
+                8: 'qword ptr'
                 }
         if self.type == Operand.IMM:
             return sizes.get(self.size, '') + ' ' + hex(self.imm)
@@ -237,8 +262,13 @@ class Operand(object):
             return self._instruction._executable.analyzer.REG_NAMES[self.reg]
         elif self.type == Operand.MEM:
             simplified = self._get_simplified()
+            
+            s = ''
+            if self.seg_reg:
+                s += self._instruction._executable.analyzer.REG_NAMES[simplified.seg_reg]
+                s += ':'
 
-            s = '['
+            s += '['
 
             show_plus = False
             if simplified.base:
@@ -273,7 +303,7 @@ def operand_from_cs_op(csOp, instruction):
     elif csOp.type == capstone.CS_OP_REG:
         return Operand(Operand.REG, size, instruction, reg=csOp.reg)
     elif csOp.type == capstone.CS_OP_MEM:
-        return Operand(Operand.MEM, size, instruction, base=csOp.mem.base, index=csOp.mem.index, scale=csOp.mem.scale, disp=csOp.mem.disp)
+        return Operand(Operand.MEM, size, instruction, base=csOp.mem.base, index=csOp.mem.index, scale=csOp.mem.scale, disp=csOp.mem.disp, seg_reg=csOp.reg)
 
 
 def instruction_from_cs_insn(csInsn, executable):
